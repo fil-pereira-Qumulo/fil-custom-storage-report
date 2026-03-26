@@ -1,0 +1,57 @@
+[[clusters]]
+# Management IP/hostname used for REST API calls
+host         = "10.0.0.1"
+port         = 8000
+token        = "access-v1:your-qumulo-api-token-here"
+cluster_name = "your-cluster.yourdomain.com"
+
+# Map each tenant name (exactly as it appears in the Qumulo API) to the FQDN
+# used in UNC paths for SMB (\\FQDN\share) and NFS exports (FQDN:/export).
+# To find tenant names, query: GET /v1/multitenancy/tenants/
+[clusters.tenant_hosts]
+"Default"        = "nas-default.yourdomain.com"
+"Finance_Tenant" = "nas-finance.yourdomain.com"
+
+# Add more clusters by repeating the [[clusters]] block:
+# [[clusters]]
+# host         = "10.0.0.2"
+# port         = 8000
+# token        = "access-v1:..."
+# cluster_name = "cluster-2.yourdomain.com"
+# [clusters.tenant_hosts]
+# "Default" = "nas02.yourdomain.com"
+
+
+
+
+[influxdb]
+url    = "http://10.0.0.10:8086"
+token  = "your-influxdb-token-here"
+org    = "your-influxdb-org-id"
+bucket = "storage-reporting"
+
+
+
+
+[smtp]
+host      = "mail.yourdomain.com"
+port      = 25
+use_tls   = false
+# username and password are optional — omit for unauthenticated relays (e.g. port 25)
+# username = "user@example.com"
+# password = "your-smtp-password"
+from_addr = "storage-reports@yourdomain.com"
+# add multiple recipients: ["user1@example.com", "user2@example.com"]
+to_addrs  = ["admin@yourdomain.com"]
+
+
+
+
+[report]
+# How often to poll the Qumulo API and POST to InfluxDB (in minutes)
+collection_interval_minutes = 1
+# Day of month (1–28) and hour (0–23, 24h) to send the monthly report
+schedule_day  = 1
+schedule_hour = 8
+# Friendly display name for the report
+title = "Monthly Storage Report"

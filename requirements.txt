@@ -1,0 +1,6 @@
+requests
+influxdb-client
+openpyxl
+
+# Test dependencies
+pytest
