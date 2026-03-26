@@ -279,16 +279,16 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin qumulo-report
 ### 2. Install the service files
 
 ```bash
-sudo mkdir -p /opt/qumulo-report
-sudo cp storage_report.py config.toml requirements.txt /opt/qumulo-report/
-sudo chown -R root:qumulo-report /opt/qumulo-report
+sudo mkdir -p /opt/qumulo/qumulo-report
+sudo cp storage_report.py config.toml requirements.txt /opt/qumulo/qumulo-report/
+sudo chown -R root:qumulo-report /opt/qumulo/qumulo-report
 ```
 
 ### 3. Install Python dependencies
 
 ```bash
 sudo apt install -y python3-pip
-sudo pip3 install -r /opt/qumulo-report/requirements.txt
+sudo pip3 install -r /opt/qumulo/qumulo-report/requirements.txt
 ```
 
 ### 4. Restrict config file permissions
@@ -296,7 +296,7 @@ sudo pip3 install -r /opt/qumulo-report/requirements.txt
 `config.toml` contains bearer tokens in plaintext. Set it so only root (owner) and the service account (group) can read it — no other users:
 
 ```bash
-sudo chmod 640 /opt/qumulo-report/config.toml
+sudo chmod 640 /opt/qumulo/qumulo-report/config.toml
 ```
 
 ### 5. Create the systemd unit file
@@ -308,8 +308,8 @@ Description=Qumulo Storage Report Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /opt/qumulo-report/storage_report.py
-WorkingDirectory=/opt/qumulo-report
+ExecStart=/usr/bin/python3 /opt/qumulo/qumulo-report/storage_report.py
+WorkingDirectory=/opt/qumulo/qumulo-report
 Restart=on-failure
 RestartSec=30
 StandardOutput=journal
@@ -358,7 +358,7 @@ sudo systemctl stop qumulo-report
 sudo systemctl disable qumulo-report
 sudo rm /etc/systemd/system/qumulo-report.service
 sudo systemctl daemon-reload
-sudo rm -rf /opt/qumulo-report
+sudo rm -rf /opt/qumulo/qumulo-report
 ```
 
 ---
