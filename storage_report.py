@@ -481,7 +481,14 @@ def assemble_report_rows(
 
     for share in smb_shares:
         fs_path = share.get("fs_path", "").rstrip("/") or "/"
-        tenant_id = int(share.get("tenant_id") or 0)
+        if fs_path == "/":
+            log.debug("Skipping SMB share id=%s — fs_path is root '/'", share.get("id", "?"))
+            continue
+        tenant_id   = int(share.get("tenant_id") or 0)
+        tenant_name = tenant_names.get(tenant_id, str(tenant_id))
+        if tenant_name not in tenant_hosts:
+            log.debug("Skipping SMB share id=%s — tenant %r not in tenant_hosts", share.get("id", "?"), tenant_name)
+            continue
         data_host = _tenant_fqdn(tenant_id, tenant_names, tenant_hosts)
         share_name = share.get("share_name", "")
         if not share_name:
@@ -510,7 +517,14 @@ def assemble_report_rows(
 
     for export in nfs_exports:
         fs_path = export.get("fs_path", "").rstrip("/") or "/"
-        tenant_id = int(export.get("tenant_id") or 0)
+        if fs_path == "/":
+            log.debug("Skipping NFS export id=%s — fs_path is root '/'", export.get("id", "?"))
+            continue
+        tenant_id   = int(export.get("tenant_id") or 0)
+        tenant_name = tenant_names.get(tenant_id, str(tenant_id))
+        if tenant_name not in tenant_hosts:
+            log.debug("Skipping NFS export id=%s — tenant %r not in tenant_hosts", export.get("id", "?"), tenant_name)
+            continue
         data_host = _tenant_fqdn(tenant_id, tenant_names, tenant_hosts)
         export_path = export.get("export_path", "")
         if not export_path:
@@ -1127,6 +1141,70 @@ class _TestAssembleReportRows(unittest.TestCase):
         )
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["share_path"], "nas01.example.com:")
+
+    def test_smb_root_fs_path_is_skipped(self):
+        client = _mock_qumulo_client()
+        rows = assemble_report_rows(
+            qumulo=client,
+            tenant_names={1: "Default"},
+            tenant_hosts=_MOCK_TENANT_HOSTS,
+            smb_shares=[
+                {"id": "1", "share_name": "root_share", "tenant_id": 1, "fs_path": "/"},
+                {"id": "2", "share_name": "data",       "tenant_id": 1, "fs_path": "/data"},
+            ],
+            nfs_exports=[],
+            quotas=[],
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["fs_path"], "/data")
+
+    def test_nfs_root_fs_path_is_skipped(self):
+        client = _mock_qumulo_client()
+        rows = assemble_report_rows(
+            qumulo=client,
+            tenant_names={1: "Default"},
+            tenant_hosts=_MOCK_TENANT_HOSTS,
+            smb_shares=[],
+            nfs_exports=[
+                {"id": "1", "export_path": "/",     "tenant_id": 1, "fs_path": "/"},
+                {"id": "2", "export_path": "/data", "tenant_id": 1, "fs_path": "/data"},
+            ],
+            quotas=[],
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["fs_path"], "/data")
+
+    def test_smb_unknown_tenant_is_skipped(self):
+        client = _mock_qumulo_client()
+        rows = assemble_report_rows(
+            qumulo=client,
+            tenant_names={1: "Default", 99: "MGMT"},
+            tenant_hosts=_MOCK_TENANT_HOSTS,  # only has "Default" and "Finance_Tenant"
+            smb_shares=[
+                {"id": "1", "share_name": "mgmt_share", "tenant_id": 99, "fs_path": "/mgmt"},
+                {"id": "2", "share_name": "data",       "tenant_id": 1,  "fs_path": "/data"},
+            ],
+            nfs_exports=[],
+            quotas=[],
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["fs_path"], "/data")
+
+    def test_nfs_unknown_tenant_is_skipped(self):
+        client = _mock_qumulo_client()
+        rows = assemble_report_rows(
+            qumulo=client,
+            tenant_names={1: "Default", 99: "MGMT"},
+            tenant_hosts=_MOCK_TENANT_HOSTS,  # only has "Default" and "Finance_Tenant"
+            smb_shares=[],
+            nfs_exports=[
+                {"id": "1", "export_path": "/mgmt", "tenant_id": 99, "fs_path": "/mgmt"},
+                {"id": "2", "export_path": "/data", "tenant_id": 1,  "fs_path": "/data"},
+            ],
+            quotas=[],
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["fs_path"], "/data")
 
 
 class _TestBuildExcelReport(unittest.TestCase):
