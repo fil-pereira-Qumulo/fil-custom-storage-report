@@ -281,7 +281,7 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin qumulo-report
 ```bash
 sudo mkdir -p /opt/qumulo-report
 sudo cp storage_report.py config.toml requirements.txt /opt/qumulo-report/
-sudo chown -R qumulo-report:qumulo-report /opt/qumulo-report
+sudo chown -R root:qumulo-report /opt/qumulo-report
 ```
 
 ### 3. Install Python dependencies
@@ -293,10 +293,10 @@ sudo pip3 install -r /opt/qumulo-report/requirements.txt
 
 ### 4. Restrict config file permissions
 
-`config.toml` contains bearer tokens in plaintext. Lock it down to the service account only:
+`config.toml` contains bearer tokens in plaintext. Set it so only root (owner) and the service account (group) can read it — no other users:
 
 ```bash
-sudo chmod 600 /opt/qumulo-report/config.toml
+sudo chmod 640 /opt/qumulo-report/config.toml
 ```
 
 ### 5. Create the systemd unit file
@@ -308,8 +308,6 @@ Description=Qumulo Storage Report Service
 After=network.target
 
 [Service]
-User=qumulo-report
-Group=qumulo-report
 ExecStart=/usr/bin/python3 /opt/qumulo-report/storage_report.py
 WorkingDirectory=/opt/qumulo-report
 Restart=on-failure
@@ -361,7 +359,6 @@ sudo systemctl disable qumulo-report
 sudo rm /etc/systemd/system/qumulo-report.service
 sudo systemctl daemon-reload
 sudo rm -rf /opt/qumulo-report
-sudo userdel qumulo-report
 ```
 
 ---
@@ -372,13 +369,14 @@ On Windows, the script can be wrapped with NSSM or run as a scheduled task. Note
 
 ### Config file permissions
 
-`config.toml` contains bearer tokens for both Qumulo and InfluxDB in plaintext. On Linux/macOS, restrict the file to the service account only:
+`config.toml` contains bearer tokens for both Qumulo and InfluxDB in plaintext. On Linux/macOS, restrict it so only root and the service group can read it:
 
 ```bash
-chmod 600 config.toml
+sudo chown root:qumulo-report config.toml
+sudo chmod 640 config.toml
 ```
 
-The script will log a warning at startup if the file is readable by group or others.
+The script will log a warning at startup if the file is readable by others outside the owner/group.
 
 ---
 
