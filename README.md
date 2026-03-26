@@ -216,22 +216,20 @@ All points use second-precision timestamps (`WritePrecision.S`).
 
 `storage_quota`, `storage_smb`, and `storage_nfs` are suitable for time-series panels in Grafana. `storage_share_detail` holds the full per-share data for table visualisation.
 
-### Grafana table query
+### Grafana dashboard
 
-To display the share detail as a table, use a Flux query similar to:
+A ready-to-import dashboard is included at `grafana-dashboard.json`. It provides a table panel matching the Excel report layout, with a cluster dropdown populated from your InfluxDB data.
 
-```flux
-from(bucket: "Qumulo storage reporting")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "storage_share_detail")
-  |> last()
-  |> group()
-  |> pivot(rowKey: ["share_path"], columnKey: ["_field"], valueColumn: "_value")
-  |> group()
-  |> keep(columns: ["share_path", "type", "fs_path", "quota_limit", "quota_used", "owner", "team", "snow_request", "speedtype"])
-```
+**To import:**
 
-The `group()` calls before and after `pivot()` are required to combine all series into a single table.
+1. In Grafana, go to **Dashboards → Import**.
+2. Click **Upload dashboard JSON file** and select `grafana-dashboard.json`.
+3. When prompted, select your InfluxDB data source (must be configured with **Flux** query language).
+4. Click **Import**.
+
+The cluster dropdown is populated automatically from the `cluster` tag in InfluxDB, which matches the `cluster_name` values in your `config.toml`.
+
+> **Note:** The dashboard queries `range(start: -2h)` and takes the `last()` point per share. Set the dashboard refresh interval to match your `collection_interval_minutes` so the table stays current.
 
 ---
 
@@ -270,25 +268,105 @@ Quota data is indexed by filesystem path (trailing slashes stripped). Each share
 
 ---
 
-## Running as a system service
+## Running as a system service (Ubuntu 22.04+)
 
-The script is designed to run indefinitely. On Linux, a systemd unit is the recommended approach:
+### 1. Create a service account
 
-```ini
+```bash
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin qumulo-report
+```
+
+### 2. Install the service files
+
+```bash
+sudo mkdir -p /opt/qumulo-report
+sudo cp storage_report.py config.toml requirements.txt /opt/qumulo-report/
+sudo chown -R qumulo-report:qumulo-report /opt/qumulo-report
+```
+
+### 3. Install Python dependencies
+
+```bash
+sudo apt install -y python3-pip
+sudo pip3 install -r /opt/qumulo-report/requirements.txt
+```
+
+### 4. Restrict config file permissions
+
+`config.toml` contains bearer tokens in plaintext. Lock it down to the service account only:
+
+```bash
+sudo chmod 600 /opt/qumulo-report/config.toml
+```
+
+### 5. Create the systemd unit file
+
+```bash
+sudo tee /etc/systemd/system/qumulo-report.service > /dev/null <<'EOF'
 [Unit]
 Description=Qumulo Storage Report Service
 After=network.target
 
 [Service]
+User=qumulo-report
+Group=qumulo-report
 ExecStart=/usr/bin/python3 /opt/qumulo-report/storage_report.py
 WorkingDirectory=/opt/qumulo-report
 Restart=on-failure
+RestartSec=30
 StandardOutput=journal
 StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+EOF
 ```
+
+### 6. Enable and start the service
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable qumulo-report
+sudo systemctl start qumulo-report
+```
+
+### 7. Verify it is running
+
+```bash
+sudo systemctl status qumulo-report
+sudo journalctl -u qumulo-report -f
+```
+
+### Applying config or code changes
+
+Because the service reads `config.toml` and `storage_report.py` from disk at startup, any change takes effect with a simple restart — no reinstall or redeployment needed:
+
+```bash
+# Edit config or replace the script file, then:
+sudo systemctl restart qumulo-report
+```
+
+For config-only changes you can also do a reload-aware restart that waits for the current collection cycle to finish:
+
+```bash
+sudo systemctl kill --kill-who=main --signal=SIGTERM qumulo-report
+# systemd will automatically restart it via Restart=on-failure
+```
+
+### Uninstall
+
+```bash
+sudo systemctl stop qumulo-report
+sudo systemctl disable qumulo-report
+sudo rm /etc/systemd/system/qumulo-report.service
+sudo systemctl daemon-reload
+sudo rm -rf /opt/qumulo-report
+sudo userdel qumulo-report
+```
+
+---
+
+### Windows
 
 On Windows, the script can be wrapped with NSSM or run as a scheduled task. Note that on Windows, SIGTERM cannot be delivered by the OS — only Ctrl+C (SIGINT) or a hard kill will stop the process. NSSM's stop command sends SIGTERM, which will not be handled gracefully; configure NSSM with a suitable shutdown timeout so it falls back to a hard terminate.
 
