@@ -85,7 +85,20 @@ SMB share paths are formatted as `\\FQDN\share_name`. NFS export paths are forma
 | `org` | InfluxDB organisation ID (not name) |
 | `bucket` | Destination bucket name, e.g. `Qumulo storage reporting` |
 
-To find your InfluxDB organisation ID: in the InfluxDB UI go to **Organisation Settings** and copy the ID shown there (not the display name).
+**Finding your organisation ID:**
+
+1. Click the account icon at the top of the left sidebar (the circle at the very top).
+2. In the menu that opens, look for **About** or **Switch Organizations**.
+3. Your Org ID will be listed there — copy that value into `config.toml` under `[influxdb] org`.
+
+**Creating an API token:**
+
+1. In the InfluxDB UI, go to **Load Data → API Tokens**.
+2. Click **+ Generate API Token → Custom API Token**.
+3. Give it a description (e.g. `qumulo-report`).
+4. Under **Buckets**, grant **Read** and **Write** access to your reporting bucket.
+5. Click **Generate** and copy the token — it is only shown once.
+6. Paste the token into `config.toml` under `[influxdb] token`.
 
 ### `[smtp]`
 
